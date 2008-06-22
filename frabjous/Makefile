@@ -17,6 +17,7 @@ dist: all
 	rm -f ebin/test*.beam
 
 test: all
+	rm -f /tmp/*.beam
 	ERL_LIBS=".." \
 	erl -pz ebin -eval "test_frabjous:test()." -s init stop -noshell
 clean:

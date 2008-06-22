@@ -15,6 +15,6 @@
 -export([behaviour_info/1]).
 
 behaviour_info(callbacks) ->
-  [{start, 0},
+  [{start, 1},
    {is_complete, 1},
    {transform, 3}].
