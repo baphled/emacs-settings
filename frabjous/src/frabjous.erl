@@ -26,6 +26,13 @@ parse_transform(AST, Opts) ->
   Transformers = resolve_transformers(AST),
   run_all_transformers(Transformers, AST, Opts).
 
+%%---------------------------------------------------
+%% invoke_transformer(Transformer, AST, Opts) -> AST
+%%
+%%  Transformer -> atom
+%%  AST -> list(terms)
+%%  Opts -> proplist()
+%%---------------------------------------------------
 invoke_transformer(Transformer, AST, Opts) ->
   increment_and_check_counter(),
   setup_state(Transformer),
@@ -39,6 +46,16 @@ invoke_transformer(Transformer, AST, Opts) ->
   end.
 
 %% Private functions
+
+%% Apply a transformer to an AST node
+parse_node(Node, Mod, Opts) ->
+  S = get(xform_state),
+  {N1, S1} = Mod:transform(Node, Opts, S),
+  put(xform_state, S1),
+  N1.
+
+%% Increment the pass counter
+%% Emit a warning if we've exceeded the pass count threshold for a single transformer
 increment_and_check_counter() ->
   PassCount = get(xform_pass) + 1,
   if
@@ -49,13 +66,26 @@ increment_and_check_counter() ->
   end,
   put(xform_pass, PassCount).
 
+%% Run down the list of transformers and execute each one
 run_all_transformers([Transformer|T], AST, Opts) ->
   put(xform_state, undef),
   put(xform_pass, 0),
-  run_all_transformers(T, invoke_transformer(Transformer, AST, Opts), Opts);
+  run_all_transformers(T, run_transformer(Transformer, AST, Opts), Opts);
 run_all_transformers([], AST, _Opts) ->
   AST.
 
+%% Wrapper around the recursive AST walk performed by each transformer
+run_transformer({Transformer, Debug}, AST, Opts) ->
+  NewAST = invoke_transformer(Transformer, AST, Opts),
+  if
+    Debug == true ->
+      print_debug_trace(AST, NewAST);
+    true ->
+      ok
+  end,
+  NewAST.
+
+%% Sets up state for each pass
 setup_state(Transformer) ->
   case get(xform_state) of
     undef ->
@@ -64,21 +94,17 @@ setup_state(Transformer) ->
       put(xform_state, Transformer:start(State))
   end.
 
-parse_node(Node, Mod, Opts) ->
-  S = get(xform_state),
-  {N1, S1} = Mod:transform(Node, Opts, S),
-  put(xform_state, S1),
-  N1.
-
+%% Resolve the transformers given in the frabjous attribute
+%% We stop walking the AST after we find the first frabjous attribute
 resolve_transformers(AST) ->
   resolve_transformers(AST, []).
-
 resolve_transformers([{attribute, _, frabjous, Options}|_T], Accum) ->
   extract_transformers(Options, Accum),
   Accum;
 resolve_transformers([_H|T], Accum) ->
   resolve_transformers(T, Accum).
 
+%% Validate the transformer and determine its desired debug output levels
 extract_transformers([{ModName, ModOpts}|T], Accum) ->
   %% Can we load the module?
   case code:which(ModName) of
@@ -94,6 +120,11 @@ extract_transformers([{ModName, ModOpts}|T], Accum) ->
       end
   end.
 
+%% Does the transformer module implement the ast_transformer behavior (required)
 is_transformer(ModName) ->
   ModInfo = ModName:module_info(),
   lists:member(ast_transformer, proplists:get_value(behavior, proplists:get_value(attributes, ModInfo))).
+
+%% Debug dump before/after snapshots of ASTs
+print_debug_trace(AST, NewAST) ->
+  io:format("----------~nStarting AST:~n~p~nFinal AST:~n~p~n----------~n", [AST, NewAST]).
