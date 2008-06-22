@@ -1,56 +1,38 @@
-APP_NAME=herault
-VSN=0.1
-APP_DEPS="sasl"
+# Files
+ERL_FILES ?=$(wildcard src/*.erl)
+BEAM_FILES ?=$(subst src/,ebin/,$(subst .erl,.beam,${ERL_FILES}))
+TEST_ERL_FILES ?=$(wildcard src/test/*.erl)
+TEST_BEAM_FILES ?=$(subst src/test/,ebin/,$(subst .erl,.beam,${TEST_ERL_FILES}))
+CODEPATH ?= -pz ./ebin
+ERL_LIB_ROOT=/opt/lib/erlang/lib
+DIALYZER_APPS=${ERL_LIB_ROOT}/stdlib*/ebin ${ERL_LIB_ROOT}/crypto*/ebin ${ERL_LIB_ROOT}/kernel*/ebin ${ERL_LIB_ROOT}/mnesia*/ebin ${ERL_LIB_ROOT}/sasl*/ebin ${ERL_LIB_ROOT}/sasl*/ebin ${ERL_LIB_ROOT}/inets*/ebin ${ERL_LIB_ROOT}/compiler*/ebin
 
-ERL_FILES    ?=$(wildcard src/*.erl src/test/*.erl)
-HRL_FILES    ?=$(wildcard include/*.hrl)
-MODULES      ?=$(subst src/, , $(subst .erl,,${ERL_FILES}))
-BEAM_FILES    ?=$(subst src/, ebin/, $(subst .erl,.beam,${ERL_FILES}))
-TEST_BEAM_FILES    ?=$(subst src/, ebin/, $(subst .erl,.beam,${TEST_ERL_FILES}))
-INC_DIRS    ?=$(subst lib/, -I lib/, $(wildcard lib/*/include))
-A_EBIN_DIRS    ?=$(subst lib/, -pa lib/, $(wildcard lib/*/ebin))
-Z_EBIN_DIRS    ?=$(subst lib/, -pz lib/, $(wildcard lib/*/ebin))
+# Compile flags
+INCLUDE = -I ./include -I ..
+ERLC_FLAGS ?=+debug_info -W -o ./ebin
 
-INCLUDE      ?=-I ${ERLANG_ROOT}/lib/stdlib-*/include ${D_INC_DIRS} -I ..
-CODEPATH    ?=${Z_EBIN_DIRS} -pz ebin
+all: ${BEAM_FILES} ${TEST_BEAM_FILES}
 
-ERLC_CODEPATH    ?=${A_EBIN_DIRS} -pz ${EUNIT_ROOT}/ebin -pz ebin
-ERLC_FLAGS    ?=+debug_info -W -o ebin
+dist: all
+	rm -f ebin/test*.beam
 
-EXTRA_DIALYZER_BEAM_FILES ?=$(wildcard lib/oserl*/ebin/*.beam lib/common_lib*/ebin/*.beam lib/proc_reg*/ebin/*.beam)
-
-NODE      ?="-name ${APP_NAME}@127.0.0.1"
-
-all: ${BEAM_FILES}
-
-release: ${BEAM_FILES} test dialyzer.report docs
-
-.PHONY: info clean docs test shell dialyzer.report shell_args
-
-info:
-	@echo Erlang root: +${ERLANG_ROOT}+
-	@echo Eunit root: +${EUNIT_ROOT}+
-	@echo Beam dirs: ${A_EBIN_DIRS}
-	@echo Extra dialyzer beam files: ${EXTRA_DIALYZER_BEAM_FILES}
-
+test: all
+	ERL_LIBS=".." \
+	erl -pz ebin -eval "test_frabjous:test()." -s init stop -noshell
 clean:
-	rm -f ebin/*.beam priv/sasl/* priv/sasl.log
+	rm -f ebin/*.beam
+	rm -rf Mnesia*
 
-ebin/%.beam: src/%.erl ${HRL_FILES}
-	@echo "$@: "
-	erlc ${ERLC_FLAGS} ${ERLC_CODEPATH} ${INCLUDE} $<
+analyze: project.plt all
+	dialyzer --plt project.plt -r ./ebin
 
-docs: ${ERL_FILES}
-	erl -noshell -run edoc_run application "'$(APP_NAME)'" '"."' '[{def,{vsn,"$(VSN)"}}]'
+project.plt:
+	dialyzer --plt project.plt --build_plt -r ${DIALYZER_APPS}
 
-test: ${BEAM_FILES}
-	erl $(CODEPATH) -eval "store_util_test:test()." -s init stop -noshell
+ebin/%.beam: src/%.erl
+	ERL_LIBS=".." \
+	erlc ${ERLC_FLAGS} ${INCLUDE} $<
 
-shell_args:
-	@(echo -ne "rr(\"include/*\").\nlists:map(fun(A) -> {A,application:start(A)} end, [${APP_DEPS}]).\napplication:start(${APP_NAME})." | pbcopy)
-
-shell: ${BEAM_FILES}
-	erl +K true -smp +A 10 ${NODE} -s ${APP_NAME} start -config priv/${APP_NAME} $(CODEPATH)
-
-dialyzer.report: ${BEAM_FILES}
-	@(dialyzer --verbose --succ_typings ${INCLUDE} ${A_EBIN_DIRS} -c ${BEAM_FILES} ${EXTRA_DIALYZER_BEAM_FILES}; if [ $$? != 1 ]; then true; else false; fi)
+ebin/test_%.beam: src/test/test_%.erl
+	ERL_LIBS=".." \
+	erlc ${ERLC_FLAGS} ${INCLUDE} $<
