@@ -99,8 +99,7 @@ setup_state(Transformer) ->
 resolve_transformers(AST) ->
   resolve_transformers(AST, []).
 resolve_transformers([{attribute, _, frabjous, Options}|_T], Accum) ->
-  extract_transformers(Options, Accum),
-  Accum;
+  extract_transformers(Options, Accum);
 resolve_transformers([_H|T], Accum) ->
   resolve_transformers(T, Accum).
 
@@ -118,7 +117,9 @@ extract_transformers([{ModName, ModOpts}|T], Accum) ->
 	false ->
 	  exit("Module '" ++ atom_to_list(ModName) ++ "' doesn't implement ast_transformer behavior")
       end
-  end.
+  end;
+extract_transformers([], Accum) ->
+  Accum.
 
 %% Does the transformer module implement the ast_transformer behavior (required)
 is_transformer(ModName) ->
