@@ -24,7 +24,12 @@
 %%---------------------------------------------------
 parse_transform(AST, Opts) ->
   Transformers = resolve_transformers(AST),
-  run_all_transformers(Transformers, AST, Opts).
+  case length(Transformers) == 0 of
+    true ->
+      AST;
+    false ->
+      run_all_transformers(Transformers, AST, Opts)
+  end.
 
 %%---------------------------------------------------
 %% invoke_transformer(Transformer, AST, Opts) -> AST
@@ -34,9 +39,9 @@ parse_transform(AST, Opts) ->
 %%  Opts -> proplist()
 %%---------------------------------------------------
 invoke_transformer(Transformer, AST, Opts) ->
-  increment_and_check_counter(),
+  increment_and_check_counter(Transformer),
   setup_state(Transformer),
-  NewAST = lists:map(fun(Node) -> parse_node(Node, Transformer, Opts) end, AST),
+  NewAST = walk_ast(Transformer, AST, Opts),
   EndingState = get(xform_state),
   case Transformer:is_complete(EndingState) of
     true ->
@@ -47,20 +52,39 @@ invoke_transformer(Transformer, AST, Opts) ->
 
 %% Private functions
 
+walk_ast(Transformer, AST, Opts) ->
+  walk_ast(Transformer, AST, Opts, []).
+
+walk_ast(Transformer, [H|T], Opts, Accum) ->
+  case parse_node(H, Transformer, Opts) of
+    delete ->
+      walk_ast(Transformer, T, Opts, Accum);
+    NewNode ->
+      walk_ast(Transformer, T, Opts, lists:append(Accum, [NewNode]))
+  end;
+walk_ast(_Transformer, [], _Opts, Accum) ->
+  Accum.
+
 %% Apply a transformer to an AST node
-parse_node(Node, Mod, Opts) ->
+parse_node(Node, Transformer, Opts) ->
   S = get(xform_state),
-  {N1, S1} = Mod:transform(Node, Opts, S),
+  {N1, S1} = Transformer:transform(Node, Opts, S),
   put(xform_state, S1),
   N1.
 
 %% Increment the pass counter
 %% Emit a warning if we've exceeded the pass count threshold for a single transformer
-increment_and_check_counter() ->
+increment_and_check_counter(Transformer) ->
   PassCount = get(xform_pass) + 1,
   if
     PassCount > ?PASS_COUNT_THRESHOLD ->
-      io:format("Transformer has executed " ++ integer_to_list(PassCount) ++ " passes -- is it stuck?");
+      io:format("WARNING: Transformer has executed ~s passes -- is it stuck?~n", [integer_to_list(PassCount)]),
+      if
+	PassCount > ?PASS_COUNT_THRESHOLD * 3 ->
+	  exit("Killing runaway transformer '" ++ atom_to_list(Transformer) ++ "'");
+	true ->
+	  ok
+      end;
     true ->
       ok
   end,
@@ -101,7 +125,9 @@ resolve_transformers(AST) ->
 resolve_transformers([{attribute, _, frabjous, Options}|_T], Accum) ->
   extract_transformers(Options, Accum);
 resolve_transformers([_H|T], Accum) ->
-  resolve_transformers(T, Accum).
+  resolve_transformers(T, Accum);
+resolve_transformers([], Accum) ->
+  Accum.
 
 %% Validate the transformer and determine its desired debug output levels
 extract_transformers([{ModName, ModOpts}|T], Accum) ->

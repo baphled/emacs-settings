@@ -12,7 +12,7 @@
 %% limitations under the License.
 -module(frabjous_helper).
 
--export([capitalize_string/1, string_to_ast/1]).
+-export([capitalize_string/1, string_to_ast/1, atom_to_var/1]).
 
 string_to_ast(Code) when is_list(Code) ->
   ScanRes = erl_scan:string(Code),
@@ -21,5 +21,10 @@ string_to_ast(Code) when is_list(Code) ->
   {ok, Form} = ParseRes,
   Form.
 
-capitalize_string([H|T]) ->
-  string:join([string:to_upper(H), T], "").
+atom_to_var(AtomVar) when is_atom(AtomVar) ->
+  capitalize_string(atom_to_list(AtomVar)).
+
+capitalize_string([H|T]) when length(T) > 0 ->
+  string:join([string:to_upper(H), T], "");
+capitalize_string([H|T]) when length(T) == 0->
+  string:to_upper(H).
