@@ -9,8 +9,8 @@
 
 -define(SERVER, ?MODULE).
 
--compile([{parse_transform, frabjous}]).
--frabjous([{remote_call, [{debug, true}]}]).
+-include_lib("frabjous/include/frabjous.hrl").
+-frabjous([{remote_call, []}]).
 
 -behaviour(gen_server).
 

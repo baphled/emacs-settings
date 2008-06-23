@@ -27,7 +27,6 @@ transform({attribute, _LineNo, call_gen_server, Options}, _Opts, State) ->
       Export = string:join(["-export([", FunName, "/", integer_to_list(length(Args)),
 			    "])."], ""),
       Fun = generate_function(FunName, Args, Server),
-      io:format("~p~n", [Fun]),
       {frabjous_helper:string_to_ast(Fun), State#state{exports=lists:append(State#state.exports, [Export])}}
   end;
 

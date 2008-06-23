@@ -130,6 +130,8 @@ resolve_transformers([], Accum) ->
   Accum.
 
 %% Validate the transformer and determine its desired debug output levels
+extract_transformers([{ModName}|T], Accum) ->
+  extract_transformers(T, lists:append(Accum, [build_transformer_record(ModName, [])]));
 extract_transformers([{ModName, ModOpts}|T], Accum) ->
   %% Can we load the module?
   case code:which(ModName) of
@@ -139,13 +141,28 @@ extract_transformers([{ModName, ModOpts}|T], Accum) ->
       %% Does the module implement the ast_transformer behavior
       case is_transformer(ModName) of
 	true ->
-	  extract_transformers(T, lists:append(Accum, [{ModName, proplists:get_value(debug, ModOpts, false)}]));
+	  extract_transformers(T, lists:append(Accum, [build_transformer_record(ModName, ModOpts)]));
 	false ->
 	  exit("Module '" ++ atom_to_list(ModName) ++ "' doesn't implement ast_transformer behavior")
       end
   end;
 extract_transformers([], Accum) ->
   Accum.
+
+build_transformer_record(ModName, ModOpts) ->
+  %% Can we load the module?
+  case code:which(ModName) of
+    non_existing ->
+      exit("Couldn't load module '" ++ atom_to_list(ModName) ++ "'");
+    _ ->
+      %% Does the module implement the ast_transformer behavior
+      case is_transformer(ModName) of
+	true ->
+	  {ModName, proplists:get_value(debug, ModOpts, false)};
+	false ->
+	  exit("Module '" ++ atom_to_list(ModName) ++ "' doesn't implement ast_transformer behavior")
+      end
+  end.
 
 %% Does the transformer module implement the ast_transformer behavior (required)
 is_transformer(ModName) ->
