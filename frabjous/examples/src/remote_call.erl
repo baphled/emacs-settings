@@ -24,6 +24,7 @@ transform({attribute, _LineNo, cast_gen_server, Options}, _Opts, State) ->
 transform(Node, _Opts, State) ->
   {Node, State}.
 
+%% If State == nil then this is the first pass
 start(State) ->
   case State of
     nil ->
