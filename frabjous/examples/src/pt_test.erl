@@ -10,7 +10,7 @@
 -define(SERVER, ?MODULE).
 
 -include_lib("frabjous/include/frabjous.hrl").
--frabjous([{remote_call, []}]).
+-frabjous([{remote_call, [{debug, true}]}]).
 
 -behaviour(gen_server).
 
@@ -26,6 +26,10 @@
 
 -call_gen_server([{server, ?SERVER},
 		  {name, add},
+		  {vars, [x,y]}]).
+
+-call_gen_server([{server, ?SERVER},
+		  {name, sub},
 		  {vars, [x,y]}]).
 
 
@@ -64,6 +68,9 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({add, X, Y}, _From, State) ->
   {reply, X + Y, State};
+
+handle_call({sub, X, Y}, _From, State) ->
+  {reply, X - Y, State};
 
 handle_call(_Request, _From, State) ->
   Reply = ok,
