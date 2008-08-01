@@ -1,6 +1,0 @@
-(provide 'distel_config)
-(require 'distel)
-(distel-setup)
-
-(global-set-key (kbd "C-c C-r y") 'erlang-refactor-on)
-(global-set-key (kbd "C-c C-r n") 'erlang-refactor-off) 
