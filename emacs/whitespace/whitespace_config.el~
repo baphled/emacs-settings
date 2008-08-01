@@ -1,0 +1,9 @@
+(provide 'whitespace_config)
+(require 'whitespace)
+
+(defvar autosave-dir (concat "/tmp/emacs_autosaves/" (user-login-name) "/"))
+(defvar backup-dir (concat "/tmp/emacs_backups/" (user-login-name) "/"))
+(make-directory auto-savedir t)
+(make-directory backup-dir t)
+
+(autoload 'nuke-trailing-whitespace "whitespace" nil t)
