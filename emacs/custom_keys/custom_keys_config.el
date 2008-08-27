@@ -1,31 +1,18 @@
 (provide 'custom_keys_config)
 
-
-
-(defun set-colors(backgrnd foregrnd)
-  (set-background-color backgrnd)
-  (set-foreground-color foregrnd)
-  (set-cursor-color foregrnd))
-
 (defun toggle-colors-white ()
   (interactive)
+  (color-theme-tiger-xcode)
   (custom-set-faces
-   '(default ((t (:stipple nil :background "White" :foreground "Black"
-			   :inverse-video nil :box nil :strike-through nil
-			   :overline nil :underline nil :slant normal
-			   :weight normal :height 120 :width normal
-			   :family "apple-monaco")))))
-  (set-colors "White" "Black"))
+   '(flymake-errline ((((class color)) (:background "Red"))))
+   '(flymake-warnline ((((class color)) (:background "Blue"))))))
 
 (defun toggle-colors-black ()
   (interactive)
+  (color-theme-dark-laptop)
   (custom-set-faces
-   '(default ((t (:stipple nil :background "Black" :foreground "White"
-			   :inverse-video nil :box nil :strike-through nil
-			   :overline nil :underline nil :slant normal
-			   :weight normal :height 120 :width normal
-			   :family "apple-monaco")))))
-  (set-colors "Black" "White"))
+   '(flymake-errline ((((class color)) (:background "DarkRed"))))
+   '(flymake-warnline ((((class color)) (:background "DarkBlue"))))))
 
 ;; Switches buffers between two Emacs windows
 ;; Obtained from http://www.emacswiki.org/cgi-bin/wiki?SwitchingBuffers#toc5
@@ -41,8 +28,8 @@
         (select-window (funcall selector)))
       (setq arg (if (plusp arg) (1- arg) (1+ arg))))))
 
-;; Kills all them buffers except scratch
-;; Obtained From http://www.chrislott.org/geek/emacs/dotemacs.html
+;; Kills all them buffers except Obtained
+;; From http://www.chrislott.org/geek/emacs/dotemacs.html
 (defun nuke-all-buffers ()
   "kill all buffers, leaving *scratch* only"
   (interactive)
