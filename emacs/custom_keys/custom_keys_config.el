@@ -1,5 +1,8 @@
 (provide 'custom_keys_config)
 
+(require 'color-theme)
+(color-theme-initialize)
+
 (defun toggle-colors-white ()
   (interactive)
   (color-theme-tiger-xcode)
