@@ -1,0 +1,6 @@
+Mode = production.
+
+FinalRouteTable = merl_route_table:add_route(merl_route_table:new_route("default",
+									"/foo",
+									fun(R) -> ok end),
+					      DefaultRouteTable).
