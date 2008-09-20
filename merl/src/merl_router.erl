@@ -5,7 +5,7 @@
 -define(SERVER, ?MODULE).
 
 %% Public API
--export([start_link/1, reload_config/0]).
+-export([start_link/1, reload_config/0, dispatch/4, stop/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -26,32 +26,45 @@ start_link(ConfigFile) ->
 reload_config() ->
   gen_server:call(?SERVER, reload_config).
 
-dispatch(Path, QueryString, Headers) ->
+dispatch(Path, QueryString, Headers, Data) ->
   case gen_server:call(?SERVER, {find_match, Path, QueryString, Headers}) of
-    {error, nomatch} ->
-      io:format("No matching route!~n");
     {ok, DispatchFun} ->
-      case DispatchFun(Path, QueryString, Headers) of
-	{ok, {render, Data}} ->
-	  ok;
-	{ok, {send, Data}} ->
-	  ok;
-	{error, {render, Data}} ->
-	  ok;
-	{error, {send, Data}} ->
-	  ok
-      end
+      case DispatchFun(Path, QueryString, Headers, Data) of
+	{ok, {render, MimeType, RenderedContent}} ->
+	  {ok, MimeType, RenderedContent};
+	{error, MimeType, RenderedContent} ->
+	  {error, MimeType, RenderedContent}
+      end;
+    {error, nomatch} ->
+      {error, "text/html", merl_util:formatb("No match for ~p", [Path])}
   end.
+
+stop() ->
+  gen_server:call(?SERVER, stop).
 
 %% gen_server callbacks
 
 init([ConfigFile]) ->
   State = load_configuration(#state{config_file=ConfigFile}),
-  io:format("State: ~p~n", [State]),
   {ok, State}.
 
+handle_call(stop, _From, State) ->
+  {stop, normal, ok, State};
+
 handle_call({find_match, Path, QueryString, Headers}, _From, State) ->
-  {reply, merl_route_table:find_matching_route(Path, QueryString, Headers, State#state.route_table), State};
+  case merl_route_table:find_matching_route(Path, QueryString, Headers, State#state.route_table) of
+    {ok, _, DispatcherFun} when is_function(DispatcherFun) ->
+      {reply, {ok, DispatcherFun}, State};
+   {ok, RemainingRoute, Module} when is_atom(Module) ->
+      case resolve_function(RemainingRoute, Module) of
+	{ok, FunName} ->
+	  {reply, {ok, fun(P, QS, H, D) -> Module:FunName(P, QS, H, D) end}, State};
+	{error, not_found} ->
+	  {reply, {error, nomatch}, State}
+      end;
+    Error ->
+      {reply, Error, State}
+  end;
 
 handle_call(reload_config, _From, State) ->
   NewState = load_configuration(State),
@@ -159,3 +172,27 @@ monitor_config(ConfigFilePath, ConfigChecksum) ->
       ok
   end,
   monitor_config(ConfigFilePath, NewChecksum).
+
+resolve_function(RemainingPath, Module) ->
+  FunName = case string:tokens(RemainingPath, "/") of
+	      [] ->
+		index;
+	      [H|_T] ->
+		list_to_atom(H)
+	    end,
+  case verify_function({FunName, 4}, Module:module_info(exports)) of
+    true ->
+      {ok, FunName};
+    false ->
+      {error, not_found}
+  end.
+
+verify_function(FunSpec, [H|T]) ->
+  case H =:= FunSpec of
+    true ->
+      true;
+    false ->
+      verify_function(FunSpec, T)
+  end;
+verify_function(_FunSpec, []) ->
+  false.

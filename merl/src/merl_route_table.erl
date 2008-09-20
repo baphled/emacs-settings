@@ -10,15 +10,21 @@ new() ->
 
 new_route(Name, RoutePred, Handler) when is_function(Handler),
 					 is_function(RoutePred) ->
-  [{name, Name},
-   {route_pred, RoutePred},
-   {handler_fun, Handler}];
+  case erlang:fun_info(Handler, arity) of
+    {arity, 4} ->
+      [{name, Name},
+       {route_pred, RoutePred},
+       {handler, Handler}];
+    {arity, _} ->
+      throw({wrong_handler_arity, erlang:fun_info(Handler, name)})
+  end;
 
-new_route(Name, RoutePred, Handler) when is_function(Handler) ->
+new_route(Name, RoutePred, Handler) when is_function(Handler) orelse
+					 is_atom(Handler) ->
   {ok, RegEx} = re:compile(RoutePred, [caseless]),
   [{name, Name},
    {route_pred, RegEx},
-   {handler_fun, Handler}].
+   {handler, Handler}].
 
 add_route(Route, RouteTable) ->
   case proplists:get_value(name, Route) of
@@ -44,15 +50,15 @@ find_matching_route(Path, QueryString, Headers, RouteTable) ->
   case search(Path, QueryString, Headers, RouteTable) of
     nomatch ->
       {error, nomatch};
-    Route ->
-      {ok, proplists:get_value(handler_fun, Route)}
+    {{_, Route}, RemainingPath} ->
+      {ok, RemainingPath, proplists:get_value(handler, Route)}
   end.
 
 %% Internal functions
 search(Path, QueryString, Headers, [H|T]) ->
   case test_route(Path, QueryString, Headers, H) of
-    true ->
-      H;
+    {true, RemainingPath} ->
+      {H, RemainingPath};
     false ->
       search(Path, QueryString, Headers, T)
   end;
@@ -60,13 +66,18 @@ search(Path, QueryString, Headers, []) ->
   nomatch.
 
 test_route(Path, QueryString, Headers,
-	   [{name, _Name}, {route_pred, RoutePred}, {handler_fun, Hander}]) when is_function(RoutePred) ->
+	   {_, [{name, _Name}, {route_pred, RoutePred}, {handler, Hander}]}) when is_function(RoutePred) ->
   RoutePred(Path, QueryString, Headers);
 test_route(Path, QueryString, Headers,
-	   [{name, _Name}, {route_pred, RoutePred}, {handler_fun, Hander}]) ->
+	   {_, [{name, _Name}, {route_pred, RoutePred}, {handler, Hander}]}) ->
   case re:run(Path, RoutePred) of
     nomatch ->
       false;
-    {match, _} ->
-      true
+    {match, [{_Start, End}]} ->
+      if
+	End + 2 >= length(Path) ->
+	  {true, ""};
+	true ->
+	  {true, string:substr(Path, End + 2)}
+      end
   end.
