@@ -29,12 +29,7 @@ reload_config() ->
 dispatch(Path, QueryString, Headers, Data) ->
   case gen_server:call(?SERVER, {find_match, Path, QueryString, Headers}) of
     {ok, DispatchFun} ->
-      case DispatchFun(Path, QueryString, Headers, Data) of
-	{ok, {render, MimeType, RenderedContent}} ->
-	  {ok, MimeType, RenderedContent};
-	{error, MimeType, RenderedContent} ->
-	  {error, MimeType, RenderedContent}
-      end;
+      DispatchFun(Path, QueryString, Headers, Data);
     {error, nomatch} ->
       {error, "text/html", merl_util:formatb("No match for ~p", [Path])}
   end.
