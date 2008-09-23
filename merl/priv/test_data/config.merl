@@ -1,5 +1,10 @@
 Mode = production.
 
-FinalRouteTable = merl_route_table:add_route(merl_route_table:new_route("default",
-									"/foo",
-									test_component), DefaultRouteTable).
+merl_route_table:add_site("testing",
+			  [{"", fun test_component:index/0},
+			   {"/foo",
+			    [string],
+			    fun test_component:foo/1},
+			   {"/foo/bar",
+			    [string, int],
+			    fun test_component:bar/2}]).

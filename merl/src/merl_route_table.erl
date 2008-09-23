@@ -2,82 +2,92 @@
 
 -author("kevin@hypotheticalabs.com").
 
--export([new/0, new_route/3, add_route/2, del_route/2, route/2]).
--export([find_matching_route/4]).
+-behaviour(gen_server).
 
-new() ->
-  [].
+%% API
+-export([start_link/0, add_site/2, find_match/1, clear/0]).
 
-new_route(Name, RoutePred, Handler) when is_function(Handler),
-					 is_function(RoutePred) ->
-  case erlang:fun_info(Handler, arity) of
-    {arity, 4} ->
-      [{name, Name},
-       {route_pred, RoutePred},
-       {handler, Handler}];
-    {arity, _} ->
-      throw({wrong_handler_arity, erlang:fun_info(Handler, name)})
-  end;
+-define(SERVER, ?MODULE).
 
-new_route(Name, RoutePred, Handler) when is_function(Handler) orelse
-					 is_atom(Handler) ->
-  {ok, RegEx} = re:compile(RoutePred, [caseless]),
-  [{name, Name},
-   {route_pred, RegEx},
-   {handler, Handler}].
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+	 terminate/2, code_change/3]).
 
-add_route(Route, RouteTable) ->
-  case proplists:get_value(name, Route) of
-    undefined ->
-      throw(illegal_route);
-    Name ->
-      [{Name, Route}|RouteTable]
-  end.
+start_link() ->
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
-del_route(RouteName, RouteTable) ->
-  lists:filter(fun({Name, _Route}) ->
-		   case Name =:= RouteName of
-		     true ->
-		       false;
-		     false ->
-		       true
-		   end end, RouteTable).
+add_site(Name, Routes) ->
+  gen_server:call(?SERVER, {add_site, Name, Routes}).
 
-route(RouteName, RouteTable) ->
-  proplists:get_value(RouteName, RouteTable).
+find_match(URL) ->
+  gen_server:call(?SERVER, {find_match, URL}).
 
-find_matching_route(Path, QueryString, Headers, RouteTable) ->
-  case search(Path, QueryString, Headers, RouteTable) of
-    nomatch ->
-      {error, nomatch};
-    {{_, Route}, RemainingPath} ->
-      {ok, RemainingPath, proplists:get_value(handler, Route)}
-  end.
+clear() ->
+  gen_server:call(?SERVER, clear).
+
+init([]) ->
+  process_flag(trap_exit, true),
+  {ok, dict:new()}.
+
+handle_call(clear, _From, _Sites) ->
+  {reply, ok, dict:new()};
+
+handle_call({find_match, URL}, _From, Sites) ->
+  Reply = case find_best_route(URL, Sites) of
+	    nomatch ->
+	      {error, no_route};
+	    Route ->
+	      {ok, Route}
+	  end,
+  {reply, Reply, Sites};
+
+handle_call({add_site, Name, Routes}, _From, Sites) ->
+  CompiledRoutes = [compile_route(R) || R <- Routes],
+  {reply, ok, dict:store(Name, CompiledRoutes, Sites)};
+
+handle_call(_Request, _From, Sites) ->
+  {reply, ignored, Sites}.
+
+handle_cast(_Msg, Sites) ->
+  {noreply, Sites}.
+
+handle_info(_Info, Sites) ->
+  {noreply, Sites}.
+
+terminate(_Reason, _Sites) ->
+  ok.
+
+code_change(_OldVsn, Sites, _Extra) ->
+  {ok, Sites}.
 
 %% Internal functions
-search(Path, QueryString, Headers, [H|T]) ->
-  case test_route(Path, QueryString, Headers, H) of
-    {true, RemainingPath} ->
-      {H, RemainingPath};
-    false ->
-      search(Path, QueryString, Headers, T)
-  end;
-search(Path, QueryString, Headers, []) ->
-  nomatch.
-
-test_route(Path, QueryString, Headers,
-	   {_, [{name, _Name}, {route_pred, RoutePred}, {handler, Hander}]}) when is_function(RoutePred) ->
-  RoutePred(Path, QueryString, Headers);
-test_route(Path, QueryString, Headers,
-	   {_, [{name, _Name}, {route_pred, RoutePred}, {handler, Hander}]}) ->
-  case re:run(Path, RoutePred) of
-    nomatch ->
-      false;
-    {match, [{_Start, End}]} ->
-      if
-	End + 2 >= length(Path) ->
-	  {true, ""};
-	true ->
-	  {true, string:substr(Path, End + 2)}
-      end
+find_best_route(URL, Sites) ->
+  case dict:fold(fun(_Site, Routes, Acc) ->
+		     lists:foldl(fun(Route, {Size, Candidate}) ->
+				     case Route:matches(URL) of
+				       nomatch ->
+					 {Size, Candidate};
+				       {match, Captured} ->
+					 if
+					   Captured > Size ->
+					     {Captured, Route};
+					   true ->
+					     {Size, Candidate}
+					 end
+				     end
+				 end, Acc, Routes) end, {-1, nomatch}, Sites) of
+    {-1, nomatch} ->
+      nomatch;
+    {_, Target} ->
+      Target
   end.
+
+compile_route({URL, FunRef}) when is_function(FunRef) orelse
+				  is_tuple(FunRef) ->
+  {ok, RegEx} = re:compile(URL),
+  merl_route:new(RegEx, [], FunRef);
+
+compile_route({URL, Specs, FunRef}) when is_function(FunRef) orelse
+					 is_tuple(FunRef)->
+  {ok, RegEx} = re:compile(URL),
+  merl_route:new(RegEx, Specs, FunRef).

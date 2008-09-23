@@ -15,7 +15,6 @@
        {config_file,
 	config_checksum,
 	mode=development,
-	route_table,
 	monitor_pid}).
 
 %% Public API
@@ -28,8 +27,8 @@ reload_config() ->
 
 dispatch(Path, QueryString, Headers, Data) ->
   case gen_server:call(?SERVER, {find_match, Path, QueryString, Headers}) of
-    {ok, DispatchFun} ->
-      DispatchFun(Path, QueryString, Headers, Data);
+    {ok, Route} ->
+      Route:invoke(Path);
     {error, nomatch} ->
       {error, "text/html", merl_util:formatb("No match for ~p", [Path])}
   end.
@@ -47,21 +46,15 @@ handle_call(stop, _From, State) ->
   {stop, normal, ok, State};
 
 handle_call({find_match, Path, QueryString, Headers}, _From, State) ->
-  case merl_route_table:find_matching_route(Path, QueryString, Headers, State#state.route_table) of
-    {ok, _, DispatcherFun} when is_function(DispatcherFun) ->
-      {reply, {ok, DispatcherFun}, State};
-   {ok, RemainingRoute, Module} when is_atom(Module) ->
-      case resolve_function(RemainingRoute, Module) of
-	{ok, FunName} ->
-	  {reply, {ok, fun(P, QS, H, D) -> Module:FunName(P, QS, H, D) end}, State};
-	{error, not_found} ->
-	  {reply, {error, nomatch}, State}
-      end;
+  case merl_route_table:find_match(Path) of
+    {ok, Route} ->
+      {reply, {ok, Route}, State};
     Error ->
       {reply, Error, State}
   end;
 
 handle_call(reload_config, _From, State) ->
+  merl_route_table:clear(),
   NewState = load_configuration(State),
   {reply, {ok, NewState#state.config_checksum}, NewState};
 
@@ -119,21 +112,15 @@ evaluate_config(State) ->
   end.
 
 persist_bindings(Bindings, State) ->
-  S1 = case erl_eval:binding('Mode', Bindings) of
+  case erl_eval:binding('Mode', Bindings) of
 	 unbound ->
 	   State;
 	 {value, Mode} ->
 	   State#state{mode=Mode}
-       end,
-  case erl_eval:binding('FinalRouteTable', Bindings) of
-    unbound ->
-      throw(missing_route_table);
-    {value, RouteTable} ->
-      S1#state{route_table=RouteTable}
-  end.
+       end.
 
 new_bindings() ->
-  erl_eval:add_binding('DefaultRouteTable', merl_route_table:new(), erl_eval:new_bindings()).
+  erl_eval:new_bindings().
 
 is_config_needed(State) ->
   case State#state.config_checksum of
@@ -167,27 +154,3 @@ monitor_config(ConfigFilePath, ConfigChecksum) ->
       ok
   end,
   monitor_config(ConfigFilePath, NewChecksum).
-
-resolve_function(RemainingPath, Module) ->
-  FunName = case string:tokens(RemainingPath, "/") of
-	      [] ->
-		index;
-	      [H|_T] ->
-		list_to_atom(H)
-	    end,
-  case verify_function({FunName, 4}, Module:module_info(exports)) of
-    true ->
-      {ok, FunName};
-    false ->
-      {error, not_found}
-  end.
-
-verify_function(FunSpec, [H|T]) ->
-  case H =:= FunSpec of
-    true ->
-      true;
-    false ->
-      verify_function(FunSpec, T)
-  end;
-verify_function(_FunSpec, []) ->
-  false.

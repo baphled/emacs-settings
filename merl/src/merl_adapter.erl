@@ -12,6 +12,7 @@ start(Port) ->
   start(Port, ?DEFAULT_ROUTER_CONFIG).
 
 start(Port, ConfigFilePath) ->
+  merl_route_table:start_link(),
   merl_router:start_link(ConfigFilePath),
   mochiweb_http:start([{port, Port},
 		       {loop, fun service/1}]),
