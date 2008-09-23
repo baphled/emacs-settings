@@ -13,6 +13,10 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+-record(state,
+	{sites=dict:new(),
+	 controllers = dict:new()}).
+
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -29,39 +33,51 @@ init([]) ->
   process_flag(trap_exit, true),
   {ok, dict:new()}.
 
-handle_call(clear, _From, _Sites) ->
-  {reply, ok, dict:new()};
+handle_call(clear, _From, _State) ->
+  {reply, ok, #state{}};
 
-handle_call({find_match, URL}, _From, Sites) ->
-  Reply = case find_best_route(URL, Sites) of
+handle_call({find_url, FunRef}, _From, State) ->
+  FunName = merl_util:fun_name(FunRef),
+  URL = case dict:find(FunName, State#state.controllers) of
+	  {ok, Route} ->
+	    Route:attr(mapping);
+	  error->
+	    none
+	end,
+  {reply, {ok, URL}, State};
+
+handle_call({find_match, URL}, _From, State) ->
+  Reply = case find_best_route(URL, State) of
 	    nomatch ->
 	      {error, no_route};
 	    Route ->
 	      {ok, Route}
 	  end,
-  {reply, Reply, Sites};
+  {reply, Reply, State};
 
-handle_call({add_site, Name, Routes}, _From, Sites) ->
+handle_call({add_site, Name, Routes}, _From, State) ->
   CompiledRoutes = [compile_route(R) || R <- Routes],
-  {reply, ok, dict:store(Name, CompiledRoutes, Sites)};
+  NewState = State#{sites=dict:store(Name, CompiledRoutes, State#state.sites),
+		    controllers=update_controllers(CompiledRoutes, State#state.controllers)},
+  {reply, ok, dict:store(Name, CompiledRoutes, NewState)};
 
-handle_call(_Request, _From, Sites) ->
-  {reply, ignored, Sites}.
+handle_call(_Request, _From, State) ->
+  {reply, ignored, State}.
 
-handle_cast(_Msg, Sites) ->
-  {noreply, Sites}.
+handle_cast(_Msg, State) ->
+  {noreply, State}.
 
-handle_info(_Info, Sites) ->
-  {noreply, Sites}.
+handle_info(_Info, State) ->
+  {noreply, State}.
 
-terminate(_Reason, _Sites) ->
+terminate(_Reason, _State) ->
   ok.
 
-code_change(_OldVsn, Sites, _Extra) ->
-  {ok, Sites}.
+code_change(_OldVsn, State, _Extra) ->
+  {ok, State}.
 
 %% Internal functions
-find_best_route(URL, Sites) ->
+find_best_route(URL, State) ->
   case dict:fold(fun(_Site, Routes, Acc) ->
 		     lists:foldl(fun(Route, {Size, Candidate}) ->
 				     case Route:matches(URL) of
@@ -75,19 +91,27 @@ find_best_route(URL, Sites) ->
 					     {Size, Candidate}
 					 end
 				     end
-				 end, Acc, Routes) end, {-1, nomatch}, Sites) of
+				 end, Acc, Routes) end, {-1, nomatch}, State) of
     {-1, nomatch} ->
       nomatch;
     {_, Target} ->
       Target
   end.
 
-compile_route({URL, FunRef}) when is_function(FunRef) orelse
-				  is_tuple(FunRef) ->
-  {ok, RegEx} = re:compile(URL),
-  merl_route:new(RegEx, [], FunRef);
+update_controllers(Routes, Controllers) ->
+  lists:foldl(fun(R, C) ->
+		  case R:attr(name)
+		    "anonymous" ->
+		      C;
+		    Name ->
+		      dict:store(Name, R, C)
+		  end end,
+	      Controllers, Routes).
 
-compile_route({URL, Specs, FunRef}) when is_function(FunRef) orelse
-					 is_tuple(FunRef)->
+compile_route({URL, FunRef}) when is_function(FunRef) ->
   {ok, RegEx} = re:compile(URL),
-  merl_route:new(RegEx, Specs, FunRef).
+  merl_route:new(RegEx, URL, [], merl_util:fun_name(FunRef), FunRef);
+
+compile_route({URL, Specs, FunRef}) when is_function(FunRef) ->
+  {ok, RegEx} = re:compile(URL),
+  merl_route:new(RegEx, URL, Specs, merl_util:fun_name(FunRef), FunRef).

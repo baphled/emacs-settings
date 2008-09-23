@@ -1,4 +1,4 @@
--module(merl_route, [URL, Paramspec, FunRef]).
+-module(merl_route, [URL, RawURL, Paramspec, FunName, FunRef]).
 
 -author("kevin@hypotheticalabs.com").
 
@@ -7,7 +7,11 @@
 -define(tail, fun(L) -> lists:nth(length(L), L) end).
 
 attr(url) ->
-  URL.
+  URL;
+attr(name) ->
+  FunName;
+attr(mapping) ->
+  RawURL.
 
 matches(CandidateURL) ->
   case re:run(CandidateURL, URL) of
