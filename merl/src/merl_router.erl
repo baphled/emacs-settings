@@ -5,7 +5,7 @@
 -define(SERVER, ?MODULE).
 
 %% Public API
--export([start_link/1, reload_config/0, dispatch/4, stop/0]).
+-export([start_link/1, reload_config/0, dispatch/4, find_match/1, stop/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -25,8 +25,11 @@ start_link(ConfigFile) ->
 reload_config() ->
   gen_server:call(?SERVER, reload_config).
 
-dispatch(Path, QueryString, Headers, Data) ->
-  case gen_server:call(?SERVER, {find_match, Path, QueryString, Headers}) of
+find_match(Path) ->
+  gen_server:call(?SERVER, {find_match, Path, "", []}).
+
+dispatch(Path, _QueryString, _Headers, _Data) ->
+  case merl_router:find_match(Path) of
     {ok, Route} ->
       Route:invoke(Path);
     {error, nomatch} ->

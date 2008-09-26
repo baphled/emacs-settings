@@ -7,4 +7,6 @@ merl_route_table:add_site("testing",
 			    fun test_component:foo/1},
 			   {"/foo/bar",
 			    [string, int],
-			    fun test_component:bar/2}]).
+			    fun test_component:bar/2},
+			    {"/foo/wobble",
+			     fun test_component:wobble/0}]).

@@ -17,3 +17,7 @@ baz(Path, QueryString, Headers, Data) ->
 
 quux(Path, QueryString, Headers, Data) ->
   {ok, {output, "text/html", <<"quux put this here<p /></body></html>">>}}.
+
+wobble() ->
+  {ok, Generator} = merl:generator("/foo/bar"),
+  {ok, {forward, Generator("kevin", 39), <<"">>}}.

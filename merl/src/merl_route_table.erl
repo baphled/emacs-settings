@@ -31,7 +31,7 @@ clear() ->
 
 init([]) ->
   process_flag(trap_exit, true),
-  {ok, dict:new()}.
+  {ok, #state{}}.
 
 handle_call(clear, _From, _State) ->
   {reply, ok, #state{}};
@@ -57,9 +57,9 @@ handle_call({find_match, URL}, _From, State) ->
 
 handle_call({add_site, Name, Routes}, _From, State) ->
   CompiledRoutes = [compile_route(R) || R <- Routes],
-  NewState = State#{sites=dict:store(Name, CompiledRoutes, State#state.sites),
-		    controllers=update_controllers(CompiledRoutes, State#state.controllers)},
-  {reply, ok, dict:store(Name, CompiledRoutes, NewState)};
+  NewState = State#state{sites=dict:store(Name, CompiledRoutes, State#state.sites),
+			 controllers=update_controllers(CompiledRoutes, State#state.controllers)},
+  {reply, ok, NewState};
 
 handle_call(_Request, _From, State) ->
   {reply, ignored, State}.
@@ -91,7 +91,7 @@ find_best_route(URL, State) ->
 					     {Size, Candidate}
 					 end
 				     end
-				 end, Acc, Routes) end, {-1, nomatch}, State) of
+				 end, Acc, Routes) end, {-1, nomatch}, State#state.sites) of
     {-1, nomatch} ->
       nomatch;
     {_, Target} ->
@@ -100,7 +100,7 @@ find_best_route(URL, State) ->
 
 update_controllers(Routes, Controllers) ->
   lists:foldl(fun(R, C) ->
-		  case R:attr(name)
+		  case R:attr(name) of
 		    "anonymous" ->
 		      C;
 		    Name ->
@@ -110,8 +110,8 @@ update_controllers(Routes, Controllers) ->
 
 compile_route({URL, FunRef}) when is_function(FunRef) ->
   {ok, RegEx} = re:compile(URL),
-  merl_route:new(RegEx, URL, [], merl_util:fun_name(FunRef), FunRef);
+  merl_route:new(RegEx, URL, [], merl_util:fun_name(FunRef), FunRef, merl_util:make_generator(URL, []));
 
 compile_route({URL, Specs, FunRef}) when is_function(FunRef) ->
   {ok, RegEx} = re:compile(URL),
-  merl_route:new(RegEx, URL, Specs, merl_util:fun_name(FunRef), FunRef).
+  merl_route:new(RegEx, URL, Specs, merl_util:fun_name(FunRef), FunRef, merl_util:make_generator(URL, Specs)).

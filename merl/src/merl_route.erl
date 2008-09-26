@@ -1,4 +1,4 @@
--module(merl_route, [URL, RawURL, Paramspec, FunName, FunRef]).
+-module(merl_route, [URL, RawURL, Paramspec, FunName, FunRef, Generator]).
 
 -author("kevin@hypotheticalabs.com").
 
@@ -11,7 +11,9 @@ attr(url) ->
 attr(name) ->
   FunName;
 attr(mapping) ->
-  RawURL.
+  RawURL;
+attr(generator) ->
+  Generator.
 
 matches(CandidateURL) ->
   case re:run(CandidateURL, URL) of
