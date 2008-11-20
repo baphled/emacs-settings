@@ -41,7 +41,7 @@ parse_transform(AST, Opts) ->
 invoke_transformer(Transformer, AST, Opts) ->
   increment_and_check_counter(Transformer),
   setup_state(Transformer),
-  NewAST = walk_ast(Transformer, AST, Opts),
+  NewAST = ast_walker:walk(Transformer, AST, Opts),
   EndingState = get(xform_state),
   case Transformer:is_complete(EndingState) of
     true ->
@@ -51,26 +51,6 @@ invoke_transformer(Transformer, AST, Opts) ->
   end.
 
 %% Private functions
-
-walk_ast(Transformer, AST, Opts) ->
-  walk_ast(Transformer, AST, Opts, []).
-
-walk_ast(Transformer, [H|T], Opts, Accum) ->
-  case parse_node(H, Transformer, Opts) of
-    delete ->
-      walk_ast(Transformer, T, Opts, Accum);
-    NewNode ->
-      walk_ast(Transformer, T, Opts, lists:append(Accum, [NewNode]))
-  end;
-walk_ast(_Transformer, [], _Opts, Accum) ->
-  Accum.
-
-%% Apply a transformer to an AST node
-parse_node(Node, Transformer, Opts) ->
-  S = get(xform_state),
-  {N1, S1} = Transformer:transform(Node, Opts, S),
-  put(xform_state, S1),
-  N1.
 
 %% Increment the pass counter
 %% Emit a warning if we've exceeded the pass count threshold for a single transformer

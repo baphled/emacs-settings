@@ -9,20 +9,10 @@
 	 pass,
 	 exports}).
 
-transform({attribute, _LineNo, export, []}, _Opts, State) when State#state.pass == 2 ->
-  Exports = "-export([" ++ string:join(State#state.exports, ",") ++ "]).",
-  {frabjous_helper:string_to_ast(Exports), State#state{exports=[]}};
-
-transform({attribute, _LineNo, frabjous, _}, _Opts, State) ->
-  {delete, State};
-
-transform({attribute, _LineNo, call_gen_server, Options}, _Opts, State) ->
-  process_attribute(call, Options, State);
-
-transform({attribute, _LineNo, cast_gen_server, Options}, _Opts, State) ->
-  process_attribute(cast, Options, State);
 transform(Node, _Opts, State) ->
+  io:format("Node: ~p~n", [Node]),
   {Node, State}.
+
 
 %% If State == nil then this is the first pass
 start(State) ->

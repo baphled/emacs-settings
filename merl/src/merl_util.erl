@@ -2,10 +2,13 @@
 
 -author("kevin@hypotheticalabs.com").
 
--export([formatb/2, fun_name/1, make_generator/2, pretty_float/1]).
+-export([formatb/2, format/2, fun_name/1, make_generator/2, pretty_float/1]).
 
 formatb(Template, Values) when is_list(Values) ->
-  list_to_binary(lists:flatten(io_lib:format(Template, Values))).
+  list_to_binary(merl_util:format(Template, Values)).
+
+format(Template, Values) when is_list(Values) ->
+  lists:flatten(io_lib:format(Template, Values)).
 
 fun_name(TargetFun) when is_function(TargetFun) ->
   case erlang:fun_info(TargetFun, module) of

@@ -47,3 +47,5 @@
 (define-key osx-key-mode-map [end] 'end-of-line)
 (define-key osx-key-mode-map [f3] 'nuke-all-buffers)
 (define-key osx-key-mode-map [f5] 'rgrep)
+
+(toggle-colors-black)

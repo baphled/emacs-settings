@@ -66,6 +66,7 @@
 
 -module(smerl).
 -author("Yariv Sadan (yarivsblog@gmail.com, http://yarivsblog.com").
+-compile([export_all]).
 -export([new/1,
 	 for_module/1,
 	 for_module/2,
@@ -112,7 +113,7 @@
 	]).
 
 -define(L(Obj), io:format("LOG ~s ~w ~p\n", [?FILE, ?LINE, Obj])).
--define(S(Obj), io:format("LOG ~s ~w ~s\n", [?FILE, ?LINE, Obj])).	 
+-define(S(Obj), io:format("LOG ~s ~w ~s\n", [?FILE, ?LINE, Obj])).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -215,7 +216,7 @@ mod_for_forms(Mod) ->
 %% @doc Return the module name for the meta_mod.
 %%
 %% @spec(MetaMod::meta_mod()) -> atom()
-get_module(MetaMod) -> 
+get_module(MetaMod) ->
     MetaMod#meta_mod.module.
 
 %% @doc Set the meta_mod's module name.
@@ -245,7 +246,7 @@ get_exports(MetaMod) ->
 	true ->
 	    lists:foldl(
 	      fun({function, _L, Name, Arity, _Clauses}, Exports) ->
-		      [{Name, Arity} | Exports];	      
+		      [{Name, Arity} | Exports];
 		 (_Form, Exports) ->
 		      Exports
 	      end, [], MetaMod#meta_mod.forms)
@@ -315,7 +316,7 @@ get_forms(Module, Path) ->
     end.
 
 get_dirs_in_dir(Dir) ->
-    case file:list_dir(Dir) of 
+    case file:list_dir(Dir) of
 	{error, _} ->
 	    undefined;
 	{ok, Listing} ->
@@ -331,7 +332,7 @@ get_dirs_in_dir(Dir) ->
 
 %% @doc Try to infer module source files from the beam code path.
 get_forms_from_binary(Module, OrigErr) ->
-    Ret = 
+    Ret =
 	case code:where_is_file(atom_to_list(Module) ++ ".beam") of
 	    non_existing ->
 		OrigErr;
@@ -492,7 +493,7 @@ has_func(MetaMod, FuncName, Arity) ->
 
 %% @doc Get the form for the function with the specified arity in the
 %%   meta_mod.
-%% 
+%%
 %% @spec get_func(MetaMod::meta_mod() | atom(),
 %%   FuncName::atom(), Arity::integer()) ->
 %%     {ok, func_form()} | {error, Err}
@@ -511,7 +512,7 @@ get_func2([], FuncName, Arity) ->
 get_func2([{function, _Line, FuncName, Arity, _Clauses} = Form | _Rest],
 	  FuncName, Arity) ->
     {ok, Form};
-get_func2([_Form|Rest], FuncName, Arity) ->		      
+get_func2([_Form|Rest], FuncName, Arity) ->
     get_func2(Rest, FuncName, Arity).
 
 
@@ -548,7 +549,7 @@ replace_func(_MetaMod, _) ->
 %% 	Err ->
 %% 	    Err
 %%     end.
-	    
+
 %% @doc Compile the module represented by the meta_mod and load the
 %% resulting BEAM into the emulator. This function calls
 %% compile(MetaMod, [report_errors, report_warnings]).
@@ -583,7 +584,7 @@ compile(MetaMod, Options) ->
 
     case compile:forms(Forms2, Options) of
 	{ok, Module, Bin} ->
-	    Res = 
+	    Res =
 		case lists:keysearch(outdir, 1, Options) of
 		    {value, {outdir, OutDir}} ->
 			file:write_file(
@@ -647,15 +648,15 @@ curry_clause({clause, L1, ExistingParams, Guards, _Exprs} = Clause,
 %% 		  [{match, 1, Var, erl_parse:abstract(NewVal)} | Acc]
 %% 	  end, [], lists:zip(FirstParams, NewParams)),
 %%    {clause, L1, LastParams, Guards, Matches ++ Exprs}.
-    
-    Vals = 
+
+    Vals =
 	lists:foldl(
 	  fun({{var,_,Name}, NewVal}, Acc) ->
 		  [{Name, erl_parse:abstract(NewVal)} | Acc];
 	     (_, Acc) ->
 		  Acc
 	  end, [], lists:zip(FirstParams, NewParams)),
-    
+
     NewExprs = replace_vars(Clause, Vals),
 
     {clause, L1, LastParams, Guards, NewExprs}.
@@ -675,7 +676,7 @@ replace_vars(Clause, Vals) ->
 	  end, Clause),
     {clause, _, _, _, NewExprs} = erl_syntax:revert(Tree),
     NewExprs.
-    
+
 
 %% @doc Curry the function from the module with the given param(s)
 %%
@@ -719,7 +720,7 @@ curry(Module, Name, Arity, Params, NewName) ->
 	Err ->
 	    Err
     end.
-		    
+
 
 %% @doc Add the curried form of the function in the meta_mod
 %%  with its curried form.
@@ -747,7 +748,7 @@ curry_add(MetaMod, Name, Arity, Params) ->
 %%     {error, Err}
 curry_add(MetaMod, Name, Arity, Params, NewName) ->
     curry_add(MetaMod, MetaMod, Name, Arity, Params, NewName).
-    
+
 %% @doc Curry the function in the module, rename the curried form, and
 %%   add it to the meta_mod.
 %%
@@ -828,13 +829,13 @@ embed_params({function, L, Name, Arity, Clauses}, Vals) ->
 			end, {[], []}, Params),
 		  NewExprs = replace_vars(Clause, EmbeddedVals),
 		  {clause, L1, OtherParams, Guards, NewExprs}
-		  
-				    
+
+
 %% 		  {Params1, Matches1, _RemainingVals} =
 %% 		      lists:foldl(
 %% 			fun({var, _L2, ParamName} = Param,
 %% 			    {Params2, Matches2, Vals1}) ->
-%% 				case lists:keysearch(ParamName, 1, Vals1) of 
+%% 				case lists:keysearch(ParamName, 1, Vals1) of
 %% 				    {value, {_Name, Val} = Elem} ->
 %% 					Match = {match, L1, Param,
 %% 						 erl_parse:abstract(Val)},
@@ -881,8 +882,8 @@ embed_params(MetaMod, Name, Arity, Values, NewName) ->
 	Err ->
 	    Err
     end.
-	
-    
+
+
 
 
 %% @doc Apply the embed_params function with the list of {Name, Value}
@@ -917,7 +918,7 @@ embed_all(MetaMod, Vals) ->
 	      forms = lists:reverse(NewForms),
 	      export_all = get_export_all(MetaMod)}.
 
-%% @doc extend/2 
+%% @doc extend/2
 %% Add all the parent module's functions that are missing from the child
 %% module to the child module. The new functions in the child module are
 %% shallow: they have the name and arity as their corresponding functions in
@@ -932,7 +933,7 @@ extend(Parent, Child) ->
 %% @doc Similar to extend/2, with the addition of the 'ArityDiff' parameter,
 %% which indicates the difference
 %% in arities Smerl should use when figuring out which functions to
-%% generate based on the modules' exports. This is sometimes 
+%% generate based on the modules' exports. This is sometimes
 %% useful when calling extend() followed by embed_all().
 %%
 %% @spec extend(Parent::atom() | meta_mod(), Child::atom() | meta_mod(),
@@ -942,7 +943,7 @@ extend(Parent, Child, ArityDiff) ->
     extend(Parent, Child, ArityDiff, []).
 
 extend(Parent, Child, ArityDiff, Options) ->
-    {{ParentName, ParentExports, ParentMod}, ChildMod} = 
+    {{ParentName, ParentExports, ParentMod}, ChildMod} =
 	get_extend_data(Parent, Child),
     ChildExports = get_exports(ChildMod),
     ChildExports1 = [{ExportName, ExportArity + ArityDiff} ||
@@ -1017,7 +1018,7 @@ get_params(ParentMod, FuncName, Arity) ->
 
 
 %% @doc Return the pretty-printed source code for the module.
-%% 
+%%
 %% @spec to_src(MetaMod::meta_mod()) -> string()
 to_src(MetaMod) ->
     ExportsForm =
@@ -1025,7 +1026,7 @@ to_src(MetaMod) ->
     AllForms = [{attribute,1,module,get_module(MetaMod)}, ExportsForm |
       get_forms(MetaMod)],
     erl_prettypr:format(erl_syntax:form_list(AllForms)).
-		  
+
 %% @doc Write the pretty printed source code for the module
 %%   to the file with the given file name.
 %%
