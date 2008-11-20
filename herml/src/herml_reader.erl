@@ -19,8 +19,18 @@ file(Filename) when is_list(Filename) ->
 
 parse_nodes(Contents) ->
   Lines = string:tokens(binary_to_list(Contents), ?EOLS),
-  build_raw_tree(Lines).
-  %%transform(Tree).
+  Tree = build_raw_tree(Lines),
+  transform(Tree).
+
+transform(Tree) ->
+  transform(Tree, []).
+
+transform([H|T], Acc) ->
+  Children = transform(H#node.children),
+  H1 = herml_tags:analyze(H#node.data),
+  transform(T, [H1#herml_node{children=Children}|Acc]);
+transform([], Acc) ->
+  lists:reverse(Acc).
 
 build_raw_tree(Lines) ->
   build_raw_tree(Lines, 1, dict:new()).

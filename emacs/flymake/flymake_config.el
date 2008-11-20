@@ -2,6 +2,7 @@
 
 (require 'flymake)
 
+
 (defun flymake-erlang-init ()
   (let* ((temp-file (flymake-init-create-temp-buffer-copy
 		     'flymake-create-temp-inplace))

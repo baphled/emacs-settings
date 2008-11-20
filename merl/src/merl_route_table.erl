@@ -2,10 +2,13 @@
 
 -author("kevin@hypotheticalabs.com").
 
+-include("merl.hrl").
+-include("merl_internal.hrl").
+
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, add_site/2, find_match/1, clear/0]).
+-export([start_link/0, add_app/1, find_match/1, clear/0]).
 
 -define(SERVER, ?MODULE).
 
@@ -20,8 +23,8 @@
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
-add_site(Name, Routes) ->
-  gen_server:call(?SERVER, {add_site, Name, Routes}).
+add_app(App) ->
+  gen_server:call(?SERVER, {add_app, App}).
 
 find_match(URL) ->
   gen_server:call(?SERVER, {find_match, URL}).
@@ -55,8 +58,8 @@ handle_call({find_match, URL}, _From, State) ->
 	  end,
   {reply, Reply, State};
 
-handle_call({add_site, Name, Routes}, _From, State) ->
-  CompiledRoutes = [compile_route(R) || R <- Routes],
+handle_call({add_app, App}, _From, State) ->
+  CompiledRoutes = [compile_route(R) || R <- App#webapp.routes],
   NewState = State#state{sites=dict:store(Name, CompiledRoutes, State#state.sites),
 			 controllers=update_controllers(CompiledRoutes, State#state.controllers)},
   {reply, ok, NewState};
@@ -108,10 +111,46 @@ update_controllers(Routes, Controllers) ->
 		  end end,
 	      Controllers, Routes).
 
-compile_route({URL, FunRef}) when is_function(FunRef) ->
-  {ok, RegEx} = re:compile(URL),
-  merl_route:new(RegEx, URL, [], merl_util:fun_name(FunRef), FunRef, merl_util:make_generator(URL, []));
+compile_route(Route) ->
+  #route{url=URL, params=Params} = Route,
+  [Handler|Parts] = string:tokens(URL, "/"),
+  CR = resolve_handler(Handler, Route),
+  CR1 = compile_parts(CR, Parts),
+  compile_params(CR1, Params).
 
-compile_route({URL, Specs, FunRef}) when is_function(FunRef) ->
-  {ok, RegEx} = re:compile(URL),
-  merl_route:new(RegEx, URL, Specs, merl_util:fun_name(FunRef), FunRef, merl_util:make_generator(URL, Specs)).
+resolve_handler(Handler, Route) ->
+  CR = #compiled_route{},
+  case Route#route.target =:= undefined of
+    true ->
+      case string:tokens(Handler, ":") of
+	[M, F] ->
+	  CR#compiled_route{target={M, F},
+			    root_url=F};
+	[_] ->
+	  throw({illegal_route_spec, merl_util:format("Missing target fun: ~s", [Handler])})
+      end;
+    false ->
+      CR#compiled_route{target=Route#route.target,
+			root_url=Route#route.url}
+  end.
+
+compile_parts(CR, Parts) ->
+  compile_parts(CR, Parts, []);
+compile_parts(CR, []) ->
+  CR.
+
+compile_parts(CR, [{Regex, DataType}|T], Accum) ->
+  {ok, RE} = re:compile(Regex),
+  compile_parts(CR, T, [{RE, merl_convert:get_converter(DataType)}|Accum]);
+compile_parts(CR, [], Accum) ->
+  CR#compiled_route{url_regexen=lists:reverse(Accum)}.
+
+compile_params(CR, []) ->
+  CR;
+compile_params(CR, Params) ->
+  compile_params(CR, Params, []).
+
+compile_params(CR, [{Name, DataType}|T], Accum) ->
+  compile_params(CR, T, [{Name, merl_convert:get_converter(DataType)}|Accum]);
+compile_params(CR, [], Accum) ->
+  CR#compiled_route{params=lists:reverse(Accum)}.
