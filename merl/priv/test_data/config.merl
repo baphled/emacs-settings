@@ -1,3 +1,0 @@
--include_lib("merl/include/merl.hrl").
-
-Mode = production.
