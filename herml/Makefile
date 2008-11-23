@@ -2,30 +2,23 @@ ERL=erl
 ERLC=erlc
 ERLC_OPT=+debug_info -W -o ebin
 
-all: compile
+all: src_src
 
-tests: compile compile_tests
-	${ERL} -pa ebin -noshell -eval 'herml_test_suite:test(), halt().'
+tests: src_src src_tests
+	${ERL} -pa ebin -pa ebin_tests -noshell -eval 'test_suite:test(), halt().'
 
 ebin:
 	mkdir ebin
 
-compile: ebin src/herml_lexer.xrl
-	${ERLC} ${ERLC_OPT} src/*.erl
+ebin_tests:
+	mkdir ebin_tests
 
-compile_tests: ebin
-	${ERLC} ${ERLC_OP} tests/*.erl
+src_src: ebin
+	cd src;erl -make
+
+src_tests: ebin_tests
+	cd tests;erl -make
 
 clean:
 	rm -f ebin/*
-	rm -f src/herml_lexer.erl
-	rm -f src/herml_parser.erl
-
-leex_compile:
-	${ERLC} ${ERLC_OPT} src/leex.erl
-
-src/herml_lexer.xrl: leex_compile
-	${ERL} -pa ebin -noshell -eval 'leex:file("src/herml_lexer.xrl", [{outdir, "src"}]), halt().'
-
-src/herml_parser.yrl: leex_compile
-	${ERL} -noshell -eval 'c:cd("./src"), yecc:file(herml_parser), halt().'
+	rm -f ebin_tests/*
