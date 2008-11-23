@@ -22,10 +22,15 @@ consolidate_nodes([H|T], Acc) ->
       case length(T) of
         0 ->
           {Nodes, NewChildren} = find_terminator(H1#node.children),
-          H2 = H1#node{children=NewChildren},
-          io:format("NewChildren: ~p~n", [NewChildren]),
-          H3 = combine_nodes(H2, Nodes),
-          consolidate_nodes(T, [H3|Acc]);
+          if
+            length(Nodes) == 0 ->
+              throw({bad_list_terminator, H1#node.line});
+            true ->
+              H2 = H1#node{children=NewChildren},
+              io:format("NewChildren: ~p~n", [NewChildren]),
+              H3 = combine_nodes(H2, Nodes),
+              consolidate_nodes(T, [H3|Acc])
+            end;
         _ ->
           {Nodes, NewTail} = find_terminator(T),
           if
@@ -86,4 +91,4 @@ find_terminator([H|T], Acc) ->
       {lists:reverse([H|Acc]), T}
   end;
 find_terminator([], Acc) ->
-  lists:reverse(Acc).
+  {lists:reverse(Acc), []}.

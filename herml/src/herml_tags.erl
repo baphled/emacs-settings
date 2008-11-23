@@ -28,9 +28,9 @@ analyze(L) ->
 %% Internal functions
 
 convert(?DIV_ID_TAG, Line, _) ->
-  #herml_node{type='div', attrs=parse_div(id, Line)};
+  #herml_node{type=tag, attrs=[{tag_name, "div"}|parse_div(id, Line)]};
 convert(?DIV_CLASS_TAG, Line, _) ->
-  #herml_node{type='div', attrs=parse_div(class, Line)};
+  #herml_node{type=tag, attrs=[{tag_name, "div"}|parse_div(class, Line)]};
 convert(?GENERIC_TAG, Line, _) ->
   {Name, Attrs} = case has_attrs(Line) of
                     true ->
@@ -38,7 +38,7 @@ convert(?GENERIC_TAG, Line, _) ->
                     false ->
                       {erlang:tl(Line), []}
                   end,
-  #herml_node{type=tag, attrs=[{name, Name}|Attrs]};
+  #herml_node{type=tag, attrs=[{tag_name, Name}|Attrs]};
 convert(_, _, L) ->
   #herml_node{type=text, attrs=[{body, L}]}.
 

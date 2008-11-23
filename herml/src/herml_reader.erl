@@ -2,20 +2,27 @@
 
 -include("tree.hrl").
 
--export([file/1]).
+-export([string/1, file/1]).
 
 -define(EOLS, [$\r, $\n]).
 -define(TAG_START, [$\%, $., $#]).
 -define(INDENT, "  ").
 
--spec(file/1 :: (Filename :: string()) -> {'ok', [any()]} | {'error', string() | atom()}).
+
+-spec(file/1 :: (Filename :: string()) -> list() | {'error', string() | atom()}).
 file(Filename) when is_list(Filename) ->
   case file:read_file(Filename) of
     {ok, Contents} ->
-      parse_nodes(Contents);
+      herml_reader:string(Contents);
     Error ->
       Error
   end.
+
+-spec(string/1 :: (Template :: binary()) -> list() | {'error', string() | atom()}).
+string(Template) when is_binary(Template) ->
+  parse_nodes(Template).
+
+%% Internal functions
 
 parse_nodes(Contents) ->
   Lines = string:tokens(binary_to_list(Contents), ?EOLS),
