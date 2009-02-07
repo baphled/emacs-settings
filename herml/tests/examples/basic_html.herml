@@ -1,4 +1,0 @@
-%html
-  %body[{class, "normal"}]
-    #message
-      Hello, world!
